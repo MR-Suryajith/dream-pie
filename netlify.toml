@@ -1,0 +1,13 @@
+[build]
+  # Base directory to change into before starting build process
+  base = "/"
+  # Directory that contains the deploy-ready HTML files and assets
+  publish = "/"
+  # The command to run for the build process (we don't need a build command here)
+  command = ""
+
+[functions]
+  # Directory where your serverless functions reside
+  directory = "netlify/functions"
+  # Node.js runtime version for functions (recommended)
+  node_bundler = "esbuild"
