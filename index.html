@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dream Pie - Create Your Dream Image</title>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="message-box" class="message-box"></div>
+
+    <header class="main-header">
+      <div class="logo-area">
+        <img
+          src="images/cropped_circle_image.png"
+          alt="Dream Pie Logo"
+          class="logo-image"
+        />
+        <span class="logo-text">Dream Pie</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#generator" class="nav-link" data-view="home-view"
+          >Generator</a
+        >
+        <a
+          href="#gallery"
+          id="nav-gallery"
+          class="nav-link"
+          data-view="gallery-section"
+          >Gallery</a
+        >
+        <a href="#about" class="nav-link">About</a>
+      </nav>
+    </header>
+
+    <main class="container">
+      <div id="home-view" class="view active">
+        <section class="landing-section" id="generator">
+          <h1 class="main-title">Welcome to Dream Pie</h1>
+          <p class="tagline">Create Your Dream in a Blink</p>
+
+          <div class="engagement-buttons">
+            <button
+              id="random-prompt-button"
+              class="action-button secondary-action-button"
+            >
+              <span role="img" aria-label="Dice">🎲</span> Get Random Idea
+            </button>
+            <button
+              id="explore-gallery-button"
+              class="action-button secondary-action-button"
+              data-view="gallery-section"
+            >
+              <span role="img" aria-label="Sparkles">✨</span> Explore the
+              Gallery
+            </button>
+          </div>
+
+          <form id="generation-form" class="generation-form">
+            <input
+              type="text"
+              id="prompt-input"
+              placeholder="e.g., A majestic cat wearing a space helmet on Mars..."
+              required
+            />
+            <button type="submit" class="generate-button">
+              Generate Image
+              <span class="glow"></span>
+            </button>
+          </form>
+        </section>
+
+        <section class="result-section" id="creation">
+          <h2 class="section-title">Your Creation</h2>
+          <div id="image-result" class="image-result-box">
+            <p id="placeholder-text">
+              Enter a prompt and click 'Generate Image' to see your creation!
+            </p>
+          </div>
+          <button
+            id="download-button"
+            class="action-button download-button"
+            disabled
+          >
+            Download
+          </button>
+        </section>
+      </div>
+
+      <section id="gallery-section" class="view">
+        <div class="gallery-header">
+          <button
+            id="back-to-home"
+            class="action-button secondary-action-button"
+          >
+            <span role="img" aria-label="Arrow">←</span> Back to Generator
+          </button>
+          <h2 class="section-title gallery-title">The Dream Pie Gallery</h2>
+        </div>
+
+        <p class="gallery-info">
+          A curated collection of recent, spectacular dreams baked by Poco Pie.
+          Click an image to see the full prompt!
+        </p>
+
+        <div id="gallery-grid" class="gallery-grid"></div>
+
+        <p id="gallery-loading">Loading dreams...</p>
+      </section>
+
+      <section class="about-section-container" id="about">
+        <div class="about-content">
+          <h2 class="about-heading">A Word from Poco Pie</h2>
+
+          <p class="about-paragraph">
+            Hello there! I’m **Poco Pie**, and I’m the little spark of chaos
+            that runs this whole Dream Pie operation. What is this place,
+            really? Think of it as a portal. I take the wild, beautiful whispers
+            floating around in your brain and—*poof!*—I turn them into perfect,
+            crispy, high-res visual art. I don't follow rules; I break reality
+            into pretty pixels.
+          </p>
+
+          <p class="about-paragraph">
+            I built **Dream Pie** because I got tired of waiting. You shouldn't
+            have to wait months for a concept sketch or spend hours learning
+            complicated software just to see your idea. If you can type it, I
+            can dream it up—instantly. Whether you need a mind-blowing avatar,
+            designing a new world, or just a stunning wallpaper, my engine is
+            here to serve up your visual feast. It’s fast, it’s flawless, and
+            honestly? It’s a little bit magic.
+          </p>
+
+          <p class="about-paragraph">
+            My mission is simple: keep the inspiration flowing, keep the pixels
+            glowing, and make sure your destiny looks absolutely amazing. Go on,
+            give me your prompt—**let's bake a dream!**
+          </p>
+
+          <div style="height: 30px"></div>
+          <div class="divider"></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
