@@ -1,91 +1,106 @@
-// This Netlify Function now calls the free-tier-eligible Gemini API endpoint
-// for image generation (gemini-2.5-flash-image-preview).
+const fetch = require("node-fetch");
 
-const API_KEY = process.env.SEEDDREAM_API_KEY;
-
-// The new API URL for the free-tier Gemini API endpoint
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${API_KEY}`;
-
+// This function acts as a secure proxy to the Stability AI API (Stable Diffusion).
 exports.handler = async (event, context) => {
-  if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method Not Allowed" };
+  // 1. Input Validation & Setup
+  if (event.httpMethod !== "POST" || !event.body) {
+    return { statusCode: 405, body: "Method Not Allowed or Missing Body" };
   }
 
+  let data;
   try {
-    const { prompt } = JSON.parse(event.body);
+    data = JSON.parse(event.body);
+  } catch (error) {
+    return { statusCode: 400, body: "Invalid JSON format" };
+  }
 
-    if (!prompt) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Prompt is required." }),
-      };
-    }
+  const prompt = data.prompt;
+  if (!prompt) {
+    return { statusCode: 400, body: "Missing prompt in request body" };
+  }
 
-    // Construct the payload for the Gemini API
-    const payload = {
-      contents: [
-        {
-          parts: [{ text: prompt }],
-        },
-      ],
-      generationConfig: {
-        // We ask for both TEXT and IMAGE modalities in the response
-        responseModalities: ["TEXT", "IMAGE"],
-      },
+  // 2. Configuration & API Key Check
+  // CRITICAL: Netlify MUST have STABILITY_API_KEY set in its environment variables
+  const apiKey = process.env.STABILITY_API_KEY;
+  if (!apiKey) {
+    console.error(
+      "FATAL: STABILITY_API_KEY environment variable is NOT set in Netlify settings."
+    );
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error:
+          "Configuration Error: Stability AI API Key is missing in Netlify Environment Variables.",
+      }),
     };
+  }
 
-    const response = await fetch(GEMINI_API_URL, {
+  // Stability AI API Configuration
+  // We will use the Stable Diffusion 3 Medium model for high quality.
+  const STABILITY_API_URL =
+    "https://api.stability.ai/v2beta/stable-image/generate/sd3";
+  const STABILITY_MODEL = "sd3-medium";
+
+  // 3. Construct the API call payload
+  const payload = {
+    prompt: prompt,
+    model: STABILITY_MODEL,
+    aspect_ratio: "1:1",
+    output_format: "png",
+  };
+
+  try {
+    const response = await fetch(STABILITY_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        // Authorization is done via a dedicated header
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
       },
       body: JSON.stringify(payload),
     });
 
     const result = await response.json();
 
+    // 4. CRITICAL FIX: Propagate external API status code (e.g., 403 or 400)
     if (!response.ok) {
-      // Log the error for debugging on Netlify side
-      console.error("API Error Response:", result);
+      console.error(
+        `External Stability AI API failed with status ${response.status}. Full error:`,
+        result
+      );
       return {
         statusCode: response.status,
-        body: JSON.stringify({
-          error: `API Request Failed (${response.status}): ${
-            result.error?.message || "Unknown API Error"
-          }`,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(result), // Send the full error details back
       };
     }
 
-    // --- Extract Base64 Data from Gemini Response ---
-    const imagePart = result?.candidates?.[0]?.content?.parts?.find(
-      (p) => p.inlineData
-    );
-    const base64Data = imagePart?.inlineData?.data;
+    // 5. Stability AI returns a JSON object with an 'image' field containing the base64 string
+    const base64Data = result?.image;
 
     if (!base64Data) {
-      // If no image data is found, return an error
       return {
         statusCode: 500,
         body: JSON.stringify({
-          error: "Image data not found in API response.",
+          error: "Image data not found in Stability AI response structure.",
         }),
       };
     }
 
-    // Return the Base64 image data to the client
+    // 6. Return successful response (wrapping the base64 data for the client)
     return {
       statusCode: 200,
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ base64Image: base64Data }),
     };
   } catch (error) {
-    console.error("Function execution error:", error);
+    console.error("Function Execution or Network Error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Internal Server Error." }),
+      body: JSON.stringify({
+        error: "Internal Server Error during Stability AI proxy execution.",
+      }),
     };
   }
 };

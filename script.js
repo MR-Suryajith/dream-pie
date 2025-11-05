@@ -138,7 +138,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /**
-   * Handles the Imagen API call using the Netlify Function proxy with retry logic.
+   * Handles the image generation API call using the Netlify Function proxy with retry logic.
    * @param {string} prompt The text prompt for the image.
    */
   async function generateImage(prompt) {
@@ -158,15 +158,11 @@ document.addEventListener("DOMContentLoaded", () => {
           // Check if the proxy returned a 4xx or 5xx error
           let errorMessage = "Unknown generation error.";
 
-          if (response.status === 403) {
-            errorMessage = `❌ **Authentication Failed (403):** Your **SEEDDREAM_API_KEY** is invalid or missing in Netlify settings.`;
-          } else if (result.error && result.error.message) {
-            // Extract specific error message from the nested JSON response
-            errorMessage = `Generation Error (${response.status}): ${result.error.message}`;
-          } else if (result.error) {
-            errorMessage = `Generation Error (${
-              response.status
-            }): ${JSON.stringify(result.error)}`;
+          if (response.status === 401 || response.status === 403) {
+            errorMessage = `❌ Authentication Failed (${response.status}): Your STABILITY_API_KEY is invalid or missing in Netlify settings.`;
+          } else if (result.message) {
+            // Stability AI often returns a 'message' field on failure
+            errorMessage = `Generation Error (${response.status}): ${result.message}`;
           } else {
             errorMessage = `Generation Error: Proxy failed with status ${response.status}. Check Netlify logs.`;
           }
@@ -174,13 +170,10 @@ document.addEventListener("DOMContentLoaded", () => {
           throw new Error(errorMessage);
         }
 
-        // Process successful image data from the proxy response
-        if (
-          result.predictions &&
-          result.predictions.length > 0 &&
-          result.predictions[0].bytesBase64Encoded
-        ) {
-          const base64Data = result.predictions[0].bytesBase64Encoded;
+        // --- Updated: Process successful image data from the proxy response (now expecting base64Image) ---
+        const base64Data = result.base64Image;
+
+        if (base64Data) {
           const imageUrl = `data:image/png;base64,${base64Data}`;
 
           const imageElement = document.createElement("img");
@@ -222,8 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- Dynamic CSS for Loading Spinners ---
-  // This dynamically adds the necessary spinner styles to the document head
+  // --- Dynamic CSS for Loading Spinners (to avoid external style dependence) ---
   const style = document.createElement("style");
   style.innerHTML = `
          /* Spinner for the image result box */
