@@ -1,6 +1,6 @@
 const fetch = require("node-fetch");
 
-// This function uses the stable v2beta/stable-image/generate/core endpoint.
+// This function acts as a secure proxy to the Stability AI API (Stable Diffusion XL).
 exports.handler = async (event, context) => {
   // 1. Input Validation & Setup
   if (event.httpMethod !== "POST" || !event.body) {
@@ -34,29 +34,38 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // --- Stability AI API Configuration ---
+  // --- Stability AI API Configuration (Using the stable SDXL 1.0 endpoint) ---
+  // This is the V1 endpoint which is highly compatible with JSON payloads.
   const STABILITY_API_URL =
-    "https://api.stability.ai/v2beta/stable-image/generate/core";
-  const STABILITY_MODEL = "ultra-fast";
+    "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image";
 
-  // 3. Construct the API call payload
+  // 3. Construct the API call payload (Using the simple SDXL v1 JSON structure)
   const payload = {
-    prompt: prompt,
-    model: STABILITY_MODEL,
-    output_format: "png", // Requesting PNG format
-    aspect_ratio: "1:1",
-    negative_prompt: "low quality, text, artifacts, watermark",
+    // Text prompts must be wrapped in an array of objects for this endpoint
+    text_prompts: [
+      { text: prompt, weight: 1.0 },
+      {
+        text: "low quality, bad anatomy, text, watermark, blurry",
+        weight: -1.0,
+      },
+    ],
+    // Standard SDXL resolution (1024x1024)
+    height: 1024,
+    width: 1024,
+    samples: 1, // Number of images to generate (keep at 1 for speed/cost)
+    steps: 30, // Lower steps for fast generation
+    cfg_scale: 7,
   };
 
   try {
     const response = await fetch(STABILITY_API_URL, {
       method: "POST",
       headers: {
-        // CRITICAL: Ensure Content-Type is correct
+        // CRITICAL: Content-Type must be 'application/json'
         "Content-Type": "application/json",
         // CRITICAL: Authorization header must be a Bearer token
         Authorization: `Bearer ${apiKey}`,
-        // CRITICAL: Accept must be set to application/json to get the base64 string back
+        // We expect the JSON response containing the base64 image data
         Accept: "application/json",
       },
       body: JSON.stringify(payload),
@@ -71,6 +80,7 @@ exports.handler = async (event, context) => {
         result
       );
 
+      // This endpoint puts the error message in result.message
       let detailedError = result.message || JSON.stringify(result);
 
       return {
@@ -82,8 +92,8 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 5. Stability AI v2beta/core returns 'image' containing the base64 string
-    const base64Data = result?.image;
+    // 5. SDXL v1 returns an 'artifacts' array, containing the base64 string in 'base64'
+    const base64Data = result?.artifacts?.[0]?.base64;
 
     if (!base64Data) {
       return {
