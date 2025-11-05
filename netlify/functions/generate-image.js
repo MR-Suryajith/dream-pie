@@ -1,6 +1,6 @@
 const fetch = require("node-fetch");
 
-// This function acts as a secure proxy to the Stability AI API (Stable Diffusion).
+// This function uses the stable v2beta/stable-image/generate/core endpoint.
 exports.handler = async (event, context) => {
   // 1. Input Validation & Setup
   if (event.httpMethod !== "POST" || !event.body) {
@@ -34,13 +34,12 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // --- Stability AI API Configuration (Switching to the reliable v2beta/core endpoint) ---
-  // This is the recommended endpoint for simple, modern image generation requests.
+  // --- Stability AI API Configuration ---
   const STABILITY_API_URL =
     "https://api.stability.ai/v2beta/stable-image/generate/core";
-  const STABILITY_MODEL = "ultra-fast"; // Using a fast, modern model
+  const STABILITY_MODEL = "ultra-fast";
 
-  // 3. Construct the API call payload (Using the v2beta/core JSON structure)
+  // 3. Construct the API call payload
   const payload = {
     prompt: prompt,
     model: STABILITY_MODEL,
@@ -53,17 +52,19 @@ exports.handler = async (event, context) => {
     const response = await fetch(STABILITY_API_URL, {
       method: "POST",
       headers: {
-        // CRITICAL: Must be 'application/json' for this endpoint to work reliably
+        // CRITICAL: Ensure Content-Type is correct
         "Content-Type": "application/json",
+        // CRITICAL: Authorization header must be a Bearer token
         Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json", // We expect the base64 JSON response
+        // CRITICAL: Accept must be set to application/json to get the base64 string back
+        Accept: "application/json",
       },
       body: JSON.stringify(payload),
     });
 
     const result = await response.json();
 
-    // 4. CRITICAL: Check status code and log detailed error
+    // 4. Check status code and log detailed error
     if (!response.ok) {
       console.error(
         `External Stability AI API failed with status ${response.status}. Full error:`,
@@ -81,7 +82,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 5. Stability AI v2beta/core returns a 'base64' field within the image object
+    // 5. Stability AI v2beta/core returns 'image' containing the base64 string
     const base64Data = result?.image;
 
     if (!base64Data) {
