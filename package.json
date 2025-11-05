@@ -1,0 +1,9 @@
+{
+  "name": "dream-pie-generator",
+  "version": "1.0.0",
+  "description": "A Netlify function proxy for the Imagen API.",
+  "main": "index.js",
+  "dependencies": {
+    "node-fetch": "^2.6.1"
+  }
+}
