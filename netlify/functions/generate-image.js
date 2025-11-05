@@ -1,6 +1,6 @@
 const fetch = require("node-fetch");
 
-// This function acts as a secure proxy to the Stability AI API (Stable Diffusion 2.1).
+// This function acts as a secure proxy to the Stability AI API (Stable Diffusion).
 exports.handler = async (event, context) => {
   // 1. Input Validation & Setup
   if (event.httpMethod !== "POST" || !event.body) {
@@ -34,35 +34,29 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // --- Stability AI API Configuration (Using a Stable JSON-Compatible Endpoint) ---
+  // --- Stability AI API Configuration (Switching to the reliable v2beta/core endpoint) ---
+  // This is the recommended endpoint for simple, modern image generation requests.
   const STABILITY_API_URL =
-    "https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image";
-  const STABILITY_MODEL = "stable-diffusion-v1-6"; // A reliable model for JSON requests
+    "https://api.stability.ai/v2beta/stable-image/generate/core";
+  const STABILITY_MODEL = "ultra-fast"; // Using a fast, modern model
 
-  // 3. Construct the API call payload (Simplified and proven JSON structure)
+  // 3. Construct the API call payload (Using the v2beta/core JSON structure)
   const payload = {
-    // The API key is passed via the header, not here
-    text_prompts: [
-      {
-        text: prompt,
-        weight: 1,
-      },
-    ],
-    cfg_scale: 7, // Default configuration scale
-    clip_guidance_preset: "FAST_BLUE", // Standard preset
-    height: 512, // Standard Stable Diffusion resolution
-    width: 512,
-    samples: 1, // Number of images to generate
-    steps: 30, // Number of steps
+    prompt: prompt,
+    model: STABILITY_MODEL,
+    output_format: "png", // Requesting PNG format
+    aspect_ratio: "1:1",
+    negative_prompt: "low quality, text, artifacts, watermark",
   };
 
   try {
     const response = await fetch(STABILITY_API_URL, {
       method: "POST",
       headers: {
+        // CRITICAL: Must be 'application/json' for this endpoint to work reliably
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
+        Accept: "application/json", // We expect the base64 JSON response
       },
       body: JSON.stringify(payload),
     });
@@ -87,8 +81,8 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 5. Stability AI v1 endpoint returns a 'artifacts' array
-    const base64Data = result?.artifacts?.[0]?.base64;
+    // 5. Stability AI v2beta/core returns a 'base64' field within the image object
+    const base64Data = result?.image;
 
     if (!base64Data) {
       return {
