@@ -1,6 +1,6 @@
 const fetch = require("node-fetch");
 
-// This function acts as a secure proxy to the Stability AI API (Stable Diffusion).
+// This function acts as a secure proxy to the Stability AI API (Stable Diffusion 2.1).
 exports.handler = async (event, context) => {
   // 1. Input Validation & Setup
   if (event.httpMethod !== "POST" || !event.body) {
@@ -20,7 +20,6 @@ exports.handler = async (event, context) => {
   }
 
   // 2. Configuration & API Key Check
-  // CRITICAL: Netlify MUST have STABILITY_API_KEY set in its environment variables
   const apiKey = process.env.STABILITY_API_KEY;
   if (!apiKey) {
     console.error(
@@ -35,18 +34,26 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // Stability AI API Configuration
-  // We will use the Stable Diffusion 3 Medium model for high quality.
+  // --- Stability AI API Configuration (Using a Stable JSON-Compatible Endpoint) ---
   const STABILITY_API_URL =
-    "https://api.stability.ai/v2beta/stable-image/generate/sd3";
-  const STABILITY_MODEL = "sd3-medium";
+    "https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image";
+  const STABILITY_MODEL = "stable-diffusion-v1-6"; // A reliable model for JSON requests
 
-  // 3. Construct the API call payload
+  // 3. Construct the API call payload (Simplified and proven JSON structure)
   const payload = {
-    prompt: prompt,
-    model: STABILITY_MODEL,
-    aspect_ratio: "1:1",
-    output_format: "png",
+    // The API key is passed via the header, not here
+    text_prompts: [
+      {
+        text: prompt,
+        weight: 1,
+      },
+    ],
+    cfg_scale: 7, // Default configuration scale
+    clip_guidance_preset: "FAST_BLUE", // Standard preset
+    height: 512, // Standard Stable Diffusion resolution
+    width: 512,
+    samples: 1, // Number of images to generate
+    steps: 30, // Number of steps
   };
 
   try {
@@ -54,7 +61,6 @@ exports.handler = async (event, context) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Authorization is done via a dedicated header
         Authorization: `Bearer ${apiKey}`,
         Accept: "application/json",
       },
@@ -63,21 +69,26 @@ exports.handler = async (event, context) => {
 
     const result = await response.json();
 
-    // 4. CRITICAL FIX: Propagate external API status code (e.g., 403 or 400)
+    // 4. CRITICAL: Check status code and log detailed error
     if (!response.ok) {
       console.error(
         `External Stability AI API failed with status ${response.status}. Full error:`,
         result
       );
+
+      let detailedError = result.message || JSON.stringify(result);
+
       return {
         statusCode: response.status,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(result), // Send the full error details back
+        body: JSON.stringify({
+          error: `Stability AI Error (${response.status}): ${detailedError}`,
+        }),
       };
     }
 
-    // 5. Stability AI returns a JSON object with an 'image' field containing the base64 string
-    const base64Data = result?.image;
+    // 5. Stability AI v1 endpoint returns a 'artifacts' array
+    const base64Data = result?.artifacts?.[0]?.base64;
 
     if (!base64Data) {
       return {
@@ -88,7 +99,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // 6. Return successful response (wrapping the base64 data for the client)
+    // 6. Return successful response
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
