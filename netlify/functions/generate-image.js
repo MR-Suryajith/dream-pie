@@ -1,86 +1,91 @@
-const fetch = require("node-fetch");
+// This Netlify Function now calls the free-tier-eligible Gemini API endpoint
+// for image generation (gemini-2.5-flash-image-preview).
 
-// This function acts as a secure proxy to the Imagen API.
+const API_KEY = process.env.SEEDDREAM_API_KEY;
+
+// The new API URL for the free-tier Gemini API endpoint
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${API_KEY}`;
+
 exports.handler = async (event, context) => {
-  // 1. Input Validation & Setup
-  if (event.httpMethod !== "POST" || !event.body) {
-    return { statusCode: 405, body: "Method Not Allowed or Missing Body" };
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, body: "Method Not Allowed" };
   }
 
-  let data;
   try {
-    data = JSON.parse(event.body);
-  } catch (error) {
-    return { statusCode: 400, body: "Invalid JSON format" };
-  }
+    const { prompt } = JSON.parse(event.body);
 
-  const prompt = data.prompt;
-  if (!prompt) {
-    return { statusCode: 400, body: "Missing prompt in request body" };
-  }
+    if (!prompt) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Prompt is required." }),
+      };
+    }
 
-  // 2. Configuration & API Key Check
-  // CRITICAL: Netlify MUST have SEEDDREAM_API_KEY set in its environment variables
-  const apiKey = process.env.SEEDDREAM_API_KEY;
-  if (!apiKey) {
-    console.error(
-      "FATAL: SEEDDREAM_API_KEY environment variable is NOT set in Netlify settings."
-    );
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        error:
-          "Configuration Error: API Key is missing in Netlify Environment Variables.",
-      }),
+    // Construct the payload for the Gemini API
+    const payload = {
+      contents: [
+        {
+          parts: [{ text: prompt }],
+        },
+      ],
+      generationConfig: {
+        // We ask for both TEXT and IMAGE modalities in the response
+        responseModalities: ["TEXT", "IMAGE"],
+      },
     };
-  }
 
-  // 3. Construct the API call
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
-
-  const payload = {
-    instances: [{ prompt: prompt }],
-    parameters: {
-      sampleCount: 1,
-      aspectRatio: "1:1",
-    },
-  };
-
-  try {
-    const response = await fetch(apiUrl, {
+    const response = await fetch(GEMINI_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(payload),
     });
 
     const result = await response.json();
 
-    // 4. ✨ CRITICAL FIX: Propagate external API status code (e.g., 403 or 400)
     if (!response.ok) {
-      console.error(
-        `External Gemini API failed with status ${response.status}. Full error:`,
-        result
-      );
+      // Log the error for debugging on Netlify side
+      console.error("API Error Response:", result);
       return {
-        statusCode: response.status, // <-- Returns the actual error code (e.g., 403)
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(result), // Send the full error details back
+        statusCode: response.status,
+        body: JSON.stringify({
+          error: `API Request Failed (${response.status}): ${
+            result.error?.message || "Unknown API Error"
+          }`,
+        }),
       };
     }
 
-    // 5. Return successful response
+    // --- Extract Base64 Data from Gemini Response ---
+    const imagePart = result?.candidates?.[0]?.content?.parts?.find(
+      (p) => p.inlineData
+    );
+    const base64Data = imagePart?.inlineData?.data;
+
+    if (!base64Data) {
+      // If no image data is found, return an error
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          error: "Image data not found in API response.",
+        }),
+      };
+    }
+
+    // Return the Base64 image data to the client
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(result),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ base64Image: base64Data }),
     };
   } catch (error) {
-    console.error("Function Execution or Network Error:", error);
+    console.error("Function execution error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        error: "Internal Server Error during image generation proxy.",
-      }),
+      body: JSON.stringify({ error: "Internal Server Error." }),
     };
   }
 };
